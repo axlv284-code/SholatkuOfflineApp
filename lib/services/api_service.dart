@@ -3,16 +3,17 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // GANTI IP INI tiap kali lu ganti hotspot/wifi (cek pake 'ip addr')
-  static const String baseUrl = 'http://10.180.79.222:3000/api';
+  // BASE URL tetep sama
+  static const String baseUrl =
+      'https://sholatku-backend-production.up.railway.app';
 
   // --- 1. Fungsi Register ---
-  // Ditambahin parameter nisn dan kelas biar masuk ke tabel users lu
   static Future<bool> register(String nama, String email, String password,
       String nisn, String kelas) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/register'),
+        // DITAMBAHIN /api biar nyambung ke kodingan Node.js lu
+        Uri.parse('$baseUrl/api/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'nama': nama,
@@ -22,7 +23,8 @@ class ApiService {
           'kelas': kelas,
         }),
       );
-      // Return true kalau backend ngirim status 201
+      print("Register Status: ${response.statusCode}");
+      print("Register Response: ${response.body}");
       return response.statusCode == 201;
     } catch (e) {
       print("Register Error: $e");
@@ -34,7 +36,7 @@ class ApiService {
   static Future<bool> verifyOtp(String email, String otp) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/verify-otp'),
+        Uri.parse('$baseUrl/api/auth/verify-otp'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'otp': otp}),
       );
@@ -50,7 +52,7 @@ class ApiService {
       String email, String password) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
+        Uri.parse('$baseUrl/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
@@ -58,7 +60,6 @@ class ApiService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        // Biar lu tau errornya apa (misal: "Email belum diverifikasi")
         print("Login Gagal: ${response.body}");
         return null;
       }
@@ -77,7 +78,8 @@ class ApiService {
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/presensi/absen'),
+        // Jangan lupa di sini juga tambahin /api
+        Uri.parse('$baseUrl/api/presensi/absen'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -102,7 +104,7 @@ class ApiService {
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/presensi/riwayat'),
+        Uri.parse('$baseUrl/api/presensi/riwayat'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

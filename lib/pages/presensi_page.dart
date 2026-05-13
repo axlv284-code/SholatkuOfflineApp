@@ -18,8 +18,6 @@ class _PresensiPageState extends State<PresensiPage> {
   bool _isCameraReady = false;
   String _distanceInfo = "Mencari Lokasi...";
   bool _canAbsen = false;
-
-  // Variabel untuk animasi tombol
   double _buttonScale = 1.0;
 
   @override
@@ -33,12 +31,10 @@ class _PresensiPageState extends State<PresensiPage> {
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) return;
-
       final frontCamera = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
       );
-
       _controller = CameraController(frontCamera, ResolutionPreset.medium);
       await _controller!.initialize();
       if (!mounted) return;
@@ -51,18 +47,12 @@ class _PresensiPageState extends State<PresensiPage> {
   Future<void> _checkLocation() async {
     try {
       Position position = await Geolocator.getCurrentPosition();
-
-      // Koordinat Masjid SMK 10 Semarang
       double latMasjid = -6.9659546;
       double lngMasjid = 110.4018987;
-
       double distance = Geolocator.distanceBetween(
           position.latitude, position.longitude, latMasjid, lngMasjid);
-
       if (!mounted) return;
-
       setState(() {
-        // Validasi Radius 50 Meter
         if (distance <= 50) {
           _distanceInfo = "Lokasi Sesuai (Jarak: ${distance.toInt()}m)";
           _canAbsen = true;
@@ -73,10 +63,7 @@ class _PresensiPageState extends State<PresensiPage> {
         }
       });
     } catch (e) {
-      if (mounted) {
-        setState(() =>
-            _distanceInfo = "Gagal mendapatkan lokasi. Pastikan GPS aktif.");
-      }
+      if (mounted) setState(() => _distanceInfo = "Gagal mendapatkan lokasi.");
     }
   }
 
@@ -84,39 +71,24 @@ class _PresensiPageState extends State<PresensiPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      ),
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator(color: Colors.white)),
     );
-
     try {
       Position pos = await Geolocator.getCurrentPosition();
       bool success = await ApiService.kirimAbsen(
           selectedSholat, "${pos.latitude}, ${pos.longitude}");
-
-      if (mounted) Navigator.pop(context); // Tutup Loading
-
+      if (mounted) Navigator.pop(context);
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Absen Berhasil Tersimpan!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-        setState(() {
-          imageFile = null; // Reset foto setelah berhasil
-        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Absen Berhasil!"), backgroundColor: Colors.green));
+        setState(() => imageFile = null);
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Gagal mengirim absen! Periksa server."),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Gagal kirim absen!"), backgroundColor: Colors.red));
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
-      print("Error: $e");
     }
   }
 
@@ -143,12 +115,10 @@ class _PresensiPageState extends State<PresensiPage> {
               decoration: BoxDecoration(
                   color: Colors.grey[200],
                   borderRadius: BorderRadius.circular(25)),
-              child: Row(
-                children: [
-                  _buildSholatTab("Dzuhur"),
-                  _buildSholatTab("Ashar"),
-                ],
-              ),
+              child: Row(children: [
+                _buildSholatTab("Dzuhur"),
+                _buildSholatTab("Ashar")
+              ]),
             ),
           ),
 
@@ -157,7 +127,7 @@ class _PresensiPageState extends State<PresensiPage> {
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Colors.black,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                       color: Colors.blue.withOpacity(0.2), width: 2)),
@@ -176,36 +146,40 @@ class _PresensiPageState extends State<PresensiPage> {
                             child: IconButton(
                               onPressed: () => setState(() => imageFile = null),
                               icon: const Icon(Icons.cancel,
-                                  color: Colors.red, size: 30),
+                                  color: Colors.red, size: 35),
                             ),
                           )
                         ],
                       )
                     : _isCameraReady
-                        ? GestureDetector(
-                            onTap: () async {
-                              final img = await _controller!.takePicture();
-                              setState(() => imageFile = img);
-                            },
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                CameraPreview(_controller!),
-                                Container(
-                                  color: Colors.black26,
-                                  child: const Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.camera_alt,
-                                          color: Colors.white, size: 50),
-                                      Text("Klik Ambil Foto Selfie",
-                                          style:
-                                              TextStyle(color: Colors.white)),
-                                    ],
+                        ? Stack(
+                            alignment: Alignment.bottomCenter,
+                            children: [
+                              CameraPreview(_controller!),
+                              // Tombol Kamera Bulat (Gak nutupin tengah lagi)
+                              Positioned(
+                                bottom: 20,
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    final img =
+                                        await _controller!.takePicture();
+                                    setState(() => imageFile = img);
+                                  },
+                                  child: Container(
+                                    height: 70,
+                                    width: 70,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.5),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.white, width: 4),
+                                    ),
+                                    child: const Icon(Icons.camera_alt,
+                                        color: Colors.white, size: 35),
                                   ),
-                                )
-                              ],
-                            ),
+                                ),
+                              ),
+                            ],
                           )
                         : const Center(child: CircularProgressIndicator()),
               ),
@@ -233,14 +207,13 @@ class _PresensiPageState extends State<PresensiPage> {
                 ),
                 if (!_canAbsen)
                   IconButton(
-                    icon: const Icon(Icons.refresh, size: 20),
-                    onPressed: _checkLocation,
-                  )
+                      icon: const Icon(Icons.refresh, size: 20),
+                      onPressed: _checkLocation)
               ],
             ),
           ),
 
-          // Tombol Kirim dengan Animasi Bounce
+          // Tombol Kirim
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
             child: GestureDetector(
@@ -287,11 +260,10 @@ class _PresensiPageState extends State<PresensiPage> {
               color: isSelected ? const Color(0xFF0C46A1) : Colors.transparent,
               borderRadius: BorderRadius.circular(25)),
           child: Center(
-            child: Text(nama,
-                style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.grey,
-                    fontWeight: FontWeight.bold)),
-          ),
+              child: Text(nama,
+                  style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.grey,
+                      fontWeight: FontWeight.bold))),
         ),
       ),
     );
