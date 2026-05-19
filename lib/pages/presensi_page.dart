@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import '../services/api_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import buat session OTP
 
 class PresensiPage extends StatefulWidget {
   const PresensiPage({super.key});
@@ -35,7 +38,9 @@ class _PresensiPageState extends State<PresensiPage> {
         (c) => c.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
       );
+
       _controller = CameraController(frontCamera, ResolutionPreset.medium);
+
       await _controller!.initialize();
       if (!mounted) return;
       setState(() => _isCameraReady = true);
@@ -47,8 +52,8 @@ class _PresensiPageState extends State<PresensiPage> {
   Future<void> _checkLocation() async {
     try {
       Position position = await Geolocator.getCurrentPosition();
-      double latMasjid = -6.9659546;
-      double lngMasjid = 110.4018987;
+      double latMasjid = -7.004755;
+      double lngMasjid = 110.272010;
       double distance = Geolocator.distanceBetween(
           position.latitude, position.longitude, latMasjid, lngMasjid);
       if (!mounted) return;
@@ -67,7 +72,32 @@ class _PresensiPageState extends State<PresensiPage> {
     }
   }
 
+  Future<File?> _kompresiFotoAsli(String targetPath) async {
+    final tempDir = await getTemporaryDirectory();
+    final outPath =
+        "${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg";
+
+    print("-> Melakukan kompresi fisik file foto asli...");
+    var result = await FlutterImageCompress.compressAndGetFile(
+      targetPath,
+      outPath,
+      quality: 35,
+      minWidth: 640,
+      minHeight: 480,
+    );
+
+    if (result == null) return null;
+    return File(result.path);
+  }
+
   void _submitAbsensi() async {
+    if (imageFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Ambil foto muka lu dulu, Xl!"),
+          backgroundColor: Colors.orange));
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -76,19 +106,38 @@ class _PresensiPageState extends State<PresensiPage> {
     );
     try {
       Position pos = await Geolocator.getCurrentPosition();
-      bool success = await ApiService.kirimAbsen(
-          selectedSholat, "${pos.latitude}, ${pos.longitude}");
+
+      // === AMBIL DATA USER ID LOGIN OTP DARI STORAGE HP ===
+      final prefs = await SharedPreferences.getInstance();
+      // Mengambil 'user_id' atau 'id', jika null fallback aman ke string "1"
+      String userIdAsli =
+          prefs.getString('user_id') ?? prefs.getInt('id')?.toString() ?? "1";
+
+      File? fileMatang = await _kompresiFotoAsli(imageFile!.path);
+      File fotoKirim = fileMatang ?? File(imageFile!.path);
+
+      print("-> Mengirim absensi untuk User ID Nyata: $userIdAsli");
+      print("-> Ukuran file terkompresi: ${await fotoKirim.length()} bytes");
+
+      // Lempar data ke ApiService dengan parameter lengkap termasuk userIdAsli
+      bool success = await ApiService.kirimAbsen(userIdAsli, selectedSholat,
+          "${pos.latitude}, ${pos.longitude}", fotoKirim);
+
       if (mounted) Navigator.pop(context);
+
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Absen Berhasil!"), backgroundColor: Colors.green));
+            content: Text("Absen Berhasil Terkirim Nyata!"),
+            backgroundColor: Colors.green));
         setState(() => imageFile = null);
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Gagal kirim absen!"), backgroundColor: Colors.red));
+            content: Text("Gagal kirim absen! Server muntah data."),
+            backgroundColor: Colors.red));
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
+      print("Error Pas Kirim Absen: $e");
     }
   }
 
@@ -107,8 +156,6 @@ class _PresensiPageState extends State<PresensiPage> {
           const SizedBox(height: 50),
           const Text("Presensi",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-
-          // Selector Sholat
           Padding(
             padding: const EdgeInsets.all(20),
             child: Container(
@@ -121,8 +168,6 @@ class _PresensiPageState extends State<PresensiPage> {
               ]),
             ),
           ),
-
-          // Kamera Preview
           Expanded(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -156,7 +201,6 @@ class _PresensiPageState extends State<PresensiPage> {
                             alignment: Alignment.bottomCenter,
                             children: [
                               CameraPreview(_controller!),
-                              // Tombol Kamera Bulat (Gak nutupin tengah lagi)
                               Positioned(
                                 bottom: 20,
                                 child: GestureDetector(
@@ -185,8 +229,6 @@ class _PresensiPageState extends State<PresensiPage> {
               ),
             ),
           ),
-
-          // Jarak & Lokasi Info
           Container(
             margin: const EdgeInsets.all(20),
             padding: const EdgeInsets.all(15),
@@ -212,8 +254,6 @@ class _PresensiPageState extends State<PresensiPage> {
               ],
             ),
           ),
-
-          // Tombol Kirim
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
             child: GestureDetector(

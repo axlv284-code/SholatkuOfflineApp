@@ -43,9 +43,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         );
       }
     } else {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Kode OTP salah atau expired!")));
+      }
     }
   }
 

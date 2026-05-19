@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart'; // WAJIB TAMBAH INI JIR AGAR FORMAT 'id_ID' AKTIF
 
 class RiwayatPage extends StatefulWidget {
   const RiwayatPage({super.key});
@@ -15,6 +16,8 @@ class _RiwayatPageState extends State<RiwayatPage> {
   @override
   void initState() {
     super.initState();
+    // Paksa aktifkan pelokalan bahasa Indonesia sebelum mengambil data
+    initializeDateFormatting('id_ID', null);
     _refreshData();
   }
 
@@ -29,7 +32,6 @@ class _RiwayatPageState extends State<RiwayatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
-      // Header serasi dengan tema aplikasi baru
       appBar: AppBar(
         title: const Text("Riwayat Presensi",
             style: TextStyle(
@@ -75,6 +77,13 @@ class _RiwayatPageState extends State<RiwayatPage> {
                   const SizedBox(height: 10),
                   const Text("Belum ada riwayat untuk akun ini.",
                       style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  const SizedBox(height: 10),
+                  TextButton(
+                      onPressed: _refreshData,
+                      child: const Text(
+                        "Refresh Layar",
+                        style: TextStyle(color: Color(0xFF0D47A1)),
+                      ))
                 ],
               ),
             );
@@ -93,7 +102,9 @@ class _RiwayatPageState extends State<RiwayatPage> {
                 // Logic format tanggal yang aman
                 String tglIndo = "Tanggal tidak valid";
                 try {
-                  DateTime tglParsed = DateTime.parse(item['tanggal']);
+                  // Mengatasi format string mentah dari SQL MySQL
+                  String tglRaw = item['tanggal'].toString();
+                  DateTime tglParsed = DateTime.parse(tglRaw);
                   tglIndo =
                       DateFormat('EEEE, d MMM yyyy', 'id_ID').format(tglParsed);
                 } catch (e) {
@@ -121,7 +132,21 @@ class _RiwayatPageState extends State<RiwayatPage> {
                         color: const Color(0xFFE3F2FD),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.mosque, color: Color(0xFF1E88E5)),
+                      // TAMPILKAN FOTO REAL DARI CLOUDINARY JIKA ADA URL-NYA
+                      child: item['foto'] != null && item['foto'] != '-'
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.network(
+                                item['foto'],
+                                width: 30,
+                                height: 30,
+                                fit: BoxFit.cover,
+                                errorBuilder: (c, e, s) => const Icon(
+                                    Icons.mosque,
+                                    color: Color(0xFF1E88E5)),
+                              ),
+                            )
+                          : const Icon(Icons.mosque, color: Color(0xFF1E88E5)),
                     ),
                     title: Text(
                       item['jenis_sholat'] ?? "Sholat",

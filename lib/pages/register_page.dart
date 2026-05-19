@@ -54,9 +54,10 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       }
     } else {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text("Gagal daftar, cek koneksi atau email sudah ada.")));
+      }
     }
   }
 

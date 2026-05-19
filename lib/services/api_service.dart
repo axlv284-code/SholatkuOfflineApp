@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'dart:io'; // WAJIB ada buat ngebaca objek File foto
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // BASE URL tetep sama
   static const String baseUrl =
       'https://sholatku-backend-production.up.railway.app';
 
@@ -12,7 +12,6 @@ class ApiService {
       String nisn, String kelas) async {
     try {
       final response = await http.post(
-        // DITAMBAHIN /api biar nyambung ke kodingan Node.js lu
         Uri.parse('$baseUrl/api/auth/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -23,16 +22,13 @@ class ApiService {
           'kelas': kelas,
         }),
       );
-      print("Register Status: ${response.statusCode}");
-      print("Register Response: ${response.body}");
       return response.statusCode == 201;
     } catch (e) {
-      print("Register Error: $e");
       return false;
     }
   }
 
-  // --- 2. Fungsi Verifikasi OTP ---
+  // --- 2. Fungsi Verifikasi OTP / Login Sukses ---
   static Future<bool> verifyOtp(String email, String otp) async {
     try {
       final response = await http.post(
@@ -40,9 +36,25 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'otp': otp}),
       );
-      return response.statusCode == 200;
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final prefs = await SharedPreferences.getInstance();
+
+        // AMANKAN SESSION: Menyimpan ID user asli hasil login OTP agar tidak menjadi "1" terus
+        if (data['user'] != null && data['user']['id'] != null) {
+          await prefs.setString('user_id', data['user']['id'].toString());
+        } else if (data['id'] != null) {
+          await prefs.setString('user_id', data['id'].toString());
+        }
+
+        if (data['token'] != null) {
+          await prefs.setString('token', data['token']);
+        }
+        return true;
+      }
+      return false;
     } catch (e) {
-      print("Verify OTP Error: $e");
       return false;
     }
   }
@@ -56,66 +68,93 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
-
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        print("Login Gagal: ${response.body}");
-        return null;
+        final data = jsonDecode(response.body);
+        final prefs = await SharedPreferences.getInstance();
+
+        // AMANKAN SESSION: Simpan ID saat login biasa sukses
+        if (data['user'] != null && data['user']['id'] != null) {
+          await prefs.setString('user_id', data['user']['id'].toString());
+        } else if (data['id'] != null) {
+          await prefs.setString('user_id', data['id'].toString());
+        }
+
+        if (data['token'] != null) {
+          await prefs.setString('token', data['token']);
+        }
+        return data;
       }
+      return null;
     } catch (e) {
-      print("Login Connection Error: $e");
       return null;
     }
   }
 
-  // --- 4. Fungsi Kirim Absen ---
-  static Future<bool> kirimAbsen(String jenis, String lokasi) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null) return false;
-
+  // --- 4. Fungsi Kirim Absen (MENERIMA PARAMETER USER ID NYATA) ---
+  static Future<bool> kirimAbsen(
+      String userId, String jenis, String lokasi, File fotoFile) async {
     try {
+      final url = Uri.parse('$baseUrl/api/presensi/absen');
+
+      // 1. Ubah file gambar fisik menjadi string Base64 teks biasa
+      List<int> imageBytes = await fotoFile.readAsBytes();
+      String base64Image = base64Encode(imageBytes);
+
+      print("-> Mengirim request untuk User ID: $userId");
+
+      // 2. Kirim murni pakai http.post JSON standar
       final response = await http.post(
-        // Jangan lupa di sini juga tambahin /api
-        Uri.parse('$baseUrl/api/presensi/absen'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'jenis_sholat': jenis, 'lokasi': lokasi}),
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': userId,
+          'jenis': jenis,
+          'jenis_sholat': jenis,
+          'lokasi': lokasi,
+          'foto_base64': base64Image,
+        }),
       );
 
       print("Absen Status: ${response.statusCode}");
-      return response.statusCode == 201;
+      print("Absen Response Server: ${response.body}");
+
+      return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
-      print("Absen Error: $e");
+      print("Absen Error di ApiService: $e");
       return false;
     }
   }
 
-  // --- 5. Fungsi Ambil Riwayat ---
+  // --- 5. Fungsi Ambil Riwayat (FIX SINKRON 100% SAMA BACKEND) ---
   static Future<List<dynamic>> ambilRiwayat() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null) return [];
+    // Ambil ID akun yang aktif, kalau tidak ada barulah mengarah ke fallback "1"
+    final String userId = prefs.getString('user_id') ?? "1";
 
     try {
+      print("-> Menarik data riwayat dari backend untuk User ID: $userId...");
+      // Menembak langsung ke endpoint param: /api/presensi/riwayat/:user_id
       final response = await http.get(
-        Uri.parse('$baseUrl/api/presensi/riwayat'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        Uri.parse('$baseUrl/api/presensi/riwayat/$userId'),
+        headers: {'Content-Type': 'application/json'},
       );
 
+      print("Riwayat Status Code: ${response.statusCode}");
+      print("Riwayat Response Body: ${response.body}");
+
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final resData = jsonDecode(response.body);
+        // Jika backend mengembalikan object terstruktur { status: 'success', data: [...] }
+        if (resData is Map && resData['data'] != null) {
+          return resData['data'];
+        }
+        // Jika backend mengembalikan data mentah list array langsung
+        if (resData is List) {
+          return resData;
+        }
       }
     } catch (e) {
-      print("Error Ambil Riwayat: $e");
+      print("Error Ambil Riwayat di ApiService: $e");
     }
     return [];
   }

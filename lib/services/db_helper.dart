@@ -30,11 +30,11 @@ class DbHelper {
         await db.execute(
           "CREATE TABLE users("
           "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-          "nama TEXT, " // Tambah ini
+          "nama TEXT, "
           "email TEXT UNIQUE, "
           "password TEXT, "
-          "nisn TEXT, " // Tambah ini
-          "kelas TEXT" // Tambah ini
+          "nisn TEXT, "
+          "kelas TEXT"
           ")",
         );
       },

@@ -37,8 +37,9 @@ class NotificationService {
   static tz.TZDateTime _nextTime(int h, int m) {
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, h, m);
-    if (scheduled.isBefore(now))
+    if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
+    }
     return scheduled;
   }
 }
